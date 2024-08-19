@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeoTIFFTileSource Demo</title>
+
+    <!-- OpenSeadragon 라이브러리 불러오기 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/openseadragon/2.4.2/openseadragon.min.js"></script>
+
+    <!-- 최신 GeoTIFF.js 브라우저 버전 불러오기 -->
+    <script src="https://cdn.jsdelivr.net/npm/geotiff@latest/dist-browser/geotiff.js"></script>
+    
+    <!-- GeoTIFF 객체 확인 -->
+    <script>
+        window.onload = function() {
+            console.log('GeoTIFF:', typeof GeoTIFF); // GeoTIFF 객체 확인
+            if (typeof GeoTIFF !== 'undefined') {
+                console.log("GeoTIFF.js가 제대로 로드되었습니다.");
+            } else {
+                console.error("GeoTIFF가 로드되지 않았습니다.");
+            }
+        }
+    </script>
+</head>
+<body>
+    <!-- 파일 선택기 -->
+    <input type="file" id="tiffFileInput" accept=".tiff,.svs" />
+    
+    <!-- OpenSeadragon 뷰어 컨테이너 -->
+    <div id="openseadragon" style="width: 100%; height: 100vh;"></div>
+
+    <script>
+        window.onload = function() {
+            // OpenSeadragon 뷰어 초기화
+            const viewer = OpenSeadragon({
+                id: "openseadragon",
+                prefixUrl: "https://cdnjs.cloudflare.com/ajax/libs/openseadragon/2.4.2/images/"
+            });
+
+            // 파일 선택 이벤트 처리
+            document.getElementById('tiffFileInput').addEventListener('change', function (event) {
+                const file = event.target.files[0]; // 선택한 파일을 가져옴
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const arrayBuffer = e.target.result; // 파일을 ArrayBuffer로 읽음
+                        
+                        // GeoTIFF.js로 TIFF 파일을 파싱하여 OpenSeadragon에서 사용
+                        if (typeof GeoTIFF !== 'undefined') {
+                            GeoTIFF.fromArrayBuffer(arrayBuffer).then(tiff => {
+                                return tiff.getImage(); // TIFF 이미지 가져오기
+                            }).then(image => {
+                                const width = image.getWidth();
+                                const height = image.getHeight();
+
+                                // 이미지 데이터를 캔버스로 변환
+                                return image.readRasters().then(rasters => {
+                                    const canvas = document.createElement('canvas');
+                                    canvas.width = width;
+                                    canvas.height = height;
+                                    const ctx = canvas.getContext('2d');
+                                    const imageData = ctx.createImageData(width, height);
+
+                                    // 픽셀 데이터를 캔버스에 채워넣기
+                                    for (let i = 0; i < rasters[0].length; i++) {
+                                        const pixelValue = rasters[0][i];
+                                        imageData.data[i * 4] = pixelValue;     // Red
+                                        imageData.data[i * 4 + 1] = pixelValue; // Green
+                                        imageData.data[i * 4 + 2] = pixelValue; // Blue
+                                        imageData.data[i * 4 + 3] = 255;        // Alpha
+                                    }
+                                    ctx.putImageData(imageData, 0, 0);
+
+                                    // 캔버스를 이미지 URL로 변환하여 OpenSeadragon에 로드
+                                    viewer.open({
+                                        type: 'image',
+                                        url: canvas.toDataURL() // 캔버스 데이터를 이미지로 변환하여 로드
+                                    });
+                                });
+                            }).catch(error => {
+                                console.error("TIFF 이미지 처리 중 오류 발생:", error);
+                            });
+                        } else {
+                            console.error("GeoTIFF가 로드되지 않았습니다.");
+                        }
+                    };
+                    reader.readAsArrayBuffer(file); // 파일을 ArrayBuffer로 읽음
+                }
+            });
+        }
+    </script>
+</body>
+</html>
